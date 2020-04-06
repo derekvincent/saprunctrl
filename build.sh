@@ -10,5 +10,6 @@ cp -Rf ./usr ${build_dir}
 cp -Rf ./etc ${build_dir}
 
 fpm -s dir -t deb -n saprunctrl -v ${version} -C ${build_dir}  --deb-auto-config-files -p ./build
+fpm -s dir -t rpm -n saprunctrl -v ${version} -C ${build_dir}  --deb-auto-config-files -p ./build
 
 rm -Rf ${build_dir}
