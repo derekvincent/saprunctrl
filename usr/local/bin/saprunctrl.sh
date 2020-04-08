@@ -294,7 +294,7 @@ update_instance_status()
         then
             local return_status
             check_instance_status "$sid" "$sysnr" return_status
-            log_debug "UPDATE INSTANCE STAUTS: $sid/$sysnr returned status $return_status"
+            log_debug "UPDATE INSTANCE STATUS: $sid/$sysnr returned status $return_status"
             if [[ $status != return_status ]]
             then 
                 upsert_instances "$host,$sid,$sysnr,$stype$,$itype,$priority,$return_status"
@@ -340,7 +340,7 @@ start_database()
             if [[ $stype = "HDB" ]]
             then
                 log_trace "START DATABASE: Starting HANA System SID: $sid  SYSNR: $sysnr."
-                start_instance instance return_status
+                start_instance ${instance} return_status
             elif [[ $stype = "SYB" ]]
             then
                 log_trace "DATABASE START: Starting $stype Database $sid."
@@ -357,6 +357,33 @@ start_database()
                 log_error "START DATABASE: Database $stype not currently supported."
             fi
             upsert_instances "${record[0]},${record[1]},${record[2]},${record[3]},${record[4]},${record[5]},${return_status}"
+        
+        elif [[ $stype != "SAP" ]] && [[ $status = STARTING ]]
+        then 
+            (( i = 0 ))
+            while [[ i -lt 12 ]]
+            do
+                local return_status
+                log_debug "START DATABASE: Waiting while the database starts loop $i}"
+                if [[ $stype = "HDB" ]]
+                then
+                    log_trace "START DATABASE: Starting HANA System SID: $sid  SYSNR: $sysnr."
+                    check_instance_status "$sid" "$sysnt" return_status
+                elif [[ $stype = "SYB" ]]
+                then
+                    echo 'Need to do something here.'
+                fi
+                upsert_instances "${record[0]},${record[1]},${record[2]},${record[3]},${record[4]},${record[5]},${return_status}"
+                if [[ ${return_status} = RUNNING ]]
+                then
+                    log_debug "START DATABASE: Database has entered the state $return_stauts}" 
+                    break
+                fi
+
+                sleep 10
+                (( i++ ))
+
+            done
         fi 
     done 
 }
@@ -380,7 +407,7 @@ stop_database()
             if [[ $stype = "HDB" ]]
             then
                 log_trace "STOP DATABASE: Starting HANA System SID: $sid  SYSNR: $sysnr."
-                stop_instance instance return_status
+                stop_instance ${instance} return_status
             elif [[ $stype = "SYB" ]]
             then
                 log_trace "DATABASE START: Starting $stype Database $sid."
@@ -420,7 +447,7 @@ start_instance()
         
         log_trace "START INSTANCE: Starting Instance: ${sid} - ${sysnr} type: ${itype}"
         local start_return
-        start_return=$("${SAPCONTROL}" -nr "${sysnr}" -function StartWait 120 5)    
+        start_return=$("${SAPCONTROL}" -nr "${sysnr}" -function StartWait 240 5)    
         local rc=$?
         if [[ $rc -eq 0 ]]
         then
@@ -432,7 +459,7 @@ start_instance()
             status="ERROR"
         elif [[ $rc -eq 2 ]]
         then
-            log_error "ERROR: START INSTANCE: Instance Start waiter timeout, instance may be running."
+            log_error "ERROR: START INSTANCE: Instance Start waiter timeout, instance ${sid} - ${sysnr} may be running."
             status="ERROR"
         fi
         eval "$__retvalue='$status'"
@@ -468,7 +495,7 @@ stop_instance()
             status="ERROR"
         elif [[ $rc -eq 2 ]]
         then
-            log_error "STOP INSTANCE: Instance Stop waiter timeout, instance maybe stopped."
+            log_error "STOP INSTANCE: Instance Stop waiter timeout, instance ${sid} - ${sysnr} maybe stopped."
             status="ERROR"
         fi
         eval "$__retvalue='$status'"
@@ -491,6 +518,7 @@ stop_system()
     then
         local sorted
         mapfile -t sorted < <(printf "%s\n" "${INSTANCES[@]}" | sort -n -r -k6,6 -t,)
+        log_debug "STOP SYSTEM: Stop Order: ${sorted[*]}"
         for instance in "${sorted[@]}"
         do
             IFS=',' read -ra record <<< "${instance}" 
@@ -528,6 +556,7 @@ start_system()
     then
         local sorted
         mapfile -t sorted < <(printf "%s\n" "${INSTANCES[@]}" | sort -n -k6,6 -t,)
+        log_debug "START SYSTEM: Start Order: ${sorted[*]}"
         for instance in "${sorted[@]}"
         do
             IFS=',' read -ra record <<< "${instance}" 
@@ -565,11 +594,11 @@ check_environment()
 ## Prints the current status of the system
 print_status(){
 
-    printf "\n%-30s %-4s %-3s %-5s %-8s %-4s %-8s \n" "Hostname" "SID" "SNR" "Prod" "Type" "Pri" "Status"
-    printf "%s\n" "====================================================================="
+    printf "\\n%-30s %-4s %-3s %-5s %-8s %-4s %-8s \n" "Hostname" "SID" "SNR" "Prod" "Type" "Pri" "Status"
+    printf "%s\\n" "====================================================================="
     for instance in "${INSTANCES[@]}"; do
         IFS=',' read -ra record <<< "$instance" 
-        printf "%-30s %-4s %-3s %-5s %-8s %-4s %-8s \n" "${record[0]}" "${record[1]}" "${record[2]}" "${record[3]}" "${record[4]}" "${record[5]}" "${record[6]}"
+        printf "%-30s %-4s %-3s %-5s %-8s %-4s %-8s \\n" "${record[0]}" "${record[1]}" "${record[2]}" "${record[3]}" "${record[4]}" "${record[5]}" "${record[6]}"
     done
 }
 

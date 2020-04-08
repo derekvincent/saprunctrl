@@ -5,6 +5,7 @@ After=sapinit.service
 
 [Service]
 Type=oneshot
+RemainAfterExit=yes
 ExecStart=/bin/sleep 30
 ExecStart=/usr/local/bin/saprunctrl.sh start
 ExecStop=/usr/local/bin/saprunctrl.sh stop
